@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stack to create an S3 bucket and an IAM role with custom parameters.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev-environment  # Changed underscore to hyphen
+    Description: Environment for the resources (e.g., dev, prod).
+
+  FinalPartBucketName:
+    Type: String
+    Default: mi-bucket
+    Description: Final part of the S3 bucket name.
+
+  FinalPartRoleName:
+    Type: String
+    Default: mi-role
+    Description: Final part of the IAM role name.
+
+Resources:
+  CustomS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "new-bucket-${Environment}-${FinalPartBucketName}"
+
+  CustomIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "new-role-${Environment}-${FinalPartRoleName}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: "sts:AssumeRole"
+
+Outputs:
+  BucketName:
+    Description: Name of the created S3 bucket
+    Value: !Ref CustomS3Bucket
+
+  RoleName:
+    Description: Name of the created IAM role
+    Value: !Ref CustomIAMRole
+

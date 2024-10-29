@@ -1,0 +1,26 @@
+Parameters:
+  TipoZona:
+    Type: String
+    Default: "zona-pruebas"
+    Description: "Type of the zone to be passed to Lambda."
+
+Resources:
+  Pruebas6CustomResource:
+    Type: "Custom::SimpleResource"
+    Properties:
+      ServiceToken: arn:aws:lambda:eu-north-1:442426851096:function:lambda4-Lambda4Function-DD5NSLwuAxqw
+      TipoZona: !Ref TipoZona
+
+  Pruebas6Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "s3-${Pruebas6CustomResource.Message}"  # Use the Lambda return value to form the bucket name
+
+Outputs:
+  Pruebas6BucketName:
+    Description: "The name of the custom Pruebas6 bucket."
+    Value: !GetAtt Pruebas6Bucket.Arn
+
+  Pruebas6LambdaMessage:
+    Description: "The message returned from the Lambda4 function."
+    Value: !GetAtt Pruebas6CustomResource.Message

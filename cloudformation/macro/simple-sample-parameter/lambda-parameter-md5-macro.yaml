@@ -1,0 +1,95 @@
+Resources:
+  LambdaMD5MacroFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaMD5MacroExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+          import hashlib
+          import logging
+
+          # Set up logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              try:
+                  # Log the received event
+                  logger.info("Received event: %s", json.dumps(event))
+
+                  # Parse the template fragment from the event
+                  template = event.get('fragment')
+                  if not template:
+                      raise ValueError("Missing 'fragment' in event data")
+
+                  # Retrieve the input string from parameters
+                  input_string = event.get('templateParameterValues', {}).get('InputString', 'default-string').lower()
+                  logger.info("Input string: %s", input_string)
+
+                  # Compute the MD5 hash of the input string
+                  md5_hash = hashlib.md5(input_string.encode()).hexdigest()
+                  md5_prefix = md5_hash[:5]
+                  logger.info("Computed MD5 prefix: %s", md5_prefix)
+
+                  # Look for "Placeholder" in the template and replace it with the MD5-prefixed value
+                  for key, value in template.get('Resources', {}).items():
+                      if 'Properties' in value and 'Value' in value['Properties']:
+                          if value['Properties']['Value'] == "Placeholder":  # Look for "Placeholder"
+                              modified_name = f"{md5_prefix}-example-output"
+                              value['Properties']['Value'] = modified_name  # Replace with MD5-prefixed output
+                              logger.info("Modified Output Value: %s", modified_name)
+
+                  # Ensure the response has the fragment
+                  response = {
+                      'requestId': event.get('requestId', 'unknown-request'),
+                      'status': 'success',
+                      'fragment': template  # The modified template
+                  }
+                  logger.info("Returning success response with fragment: %s", json.dumps(response))
+                  return response
+
+              except Exception as e:
+                  logger.error("Error processing macro: %s", str(e))
+                  # Return failure status with fragment for diagnostics
+                  response = {
+                      'requestId': event.get('requestId', 'unknown-request'),
+                      'status': 'failure',
+                      'fragment': event.get('fragment'),  # Ensure at least the original fragment is returned
+                      'errorMessage': str(e)
+                  }
+                  logger.info("Returning failure response with fragment: %s", json.dumps(response))
+                  return response
+
+  LambdaMD5MacroExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaMD5MacroExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+  MD5PrefixMacro:
+    Type: "AWS::CloudFormation::Macro"
+    Properties:
+      Name: "MD5PrefixMacro"
+      FunctionName: !Ref LambdaMD5MacroFunction
+
+

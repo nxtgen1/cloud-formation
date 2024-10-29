@@ -1,0 +1,19 @@
+Transform: S3PrefixMacro  # Tells CloudFormation to apply this macro
+
+Parameters:
+  InputString:
+    Type: String
+    Default: "bucket-test"
+    Description: "A string used to generate a unique prefix for the S3 bucket name."
+
+Resources:
+  CustomS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: "replace-me"  # Placeholder to be entirely replaced by the Lambda macro with the MD5 prefix
+
+Outputs:
+  FinalBucketName:
+    Description: "The final name of the created S3 bucket."
+    Value: !Ref CustomS3Bucket
+

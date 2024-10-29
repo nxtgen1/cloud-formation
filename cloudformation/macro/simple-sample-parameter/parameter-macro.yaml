@@ -1,0 +1,21 @@
+Transform: MD5PrefixMacro  # Tells CloudFormation to apply this macro
+
+Parameters:
+  InputString:
+    Type: String
+    Default: "simple-test"
+    Description: "A simple test input string for MD5 prefix."
+
+Resources:
+  OutputExample:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "MacroTestOutput"  # SSM Parameter name
+      Type: "String"
+      Value: "Placeholder"  # Placeholder that will be modified by the macro
+
+Outputs:
+  TestOutput:
+    Description: "An output with an MD5 prefix added by the macro."
+    Value: !Ref OutputExample
+

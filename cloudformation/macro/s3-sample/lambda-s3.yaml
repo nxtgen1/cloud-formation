@@ -1,0 +1,95 @@
+Resources:
+  LambdaS3MacroFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaS3MacroExecutionRole.Arn
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import json
+          import hashlib
+          import logging
+
+          # Set up logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def handler(event, context):
+              try:
+                  # Log the received event
+                  logger.info("Received event: %s", json.dumps(event))
+
+                  # Parse the template fragment from the event
+                  template = event.get('fragment')
+                  if not template:
+                      raise ValueError("Missing 'fragment' in event data")
+
+                  # Retrieve the input string from parameters
+                  input_string = event.get('templateParameterValues', {}).get('InputString', 'default-string').lower()
+                  logger.info("Input string: %s", input_string)
+
+                  # Compute the MD5 hash of the input string
+                  md5_hash = hashlib.md5(input_string.encode()).hexdigest()
+                  md5_prefix = md5_hash[:5].lower()
+                  logger.info("Computed MD5 prefix: %s", md5_prefix)
+
+                  # Replace 'replace-me' in BucketName with the MD5 prefix only
+                  for key, value in template.get('Resources', {}).items():
+                      if 'Properties' in value and 'BucketName' in value['Properties']:
+                          bucket_name = value['Properties']['BucketName']
+                          if 'replace-me' in bucket_name:
+                              modified_name = md5_prefix
+                              value['Properties']['BucketName'] = modified_name
+                              logger.info("Modified BucketName: %s", modified_name)
+
+                  # Ensure the response has the fragment
+                  response = {
+                      'requestId': event.get('requestId', 'unknown-request'),
+                      'status': 'success',
+                      'fragment': template  # The modified template
+                  }
+                  logger.info("Returning success response with fragment: %s", json.dumps(response))
+                  return response
+
+              except Exception as e:
+                  logger.error("Error processing macro: %s", str(e))
+                  # Return failure status with fragment for diagnostics
+                  response = {
+                      'requestId': event.get('requestId', 'unknown-request'),
+                      'status': 'failure',
+                      'fragment': event.get('fragment'),  # Ensure at least the original fragment is returned
+                      'errorMessage': str(e)
+                  }
+                  logger.info("Returning failure response with fragment: %s", json.dumps(response))
+                  return response
+
+  LambdaS3MacroExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "LambdaS3MacroExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+
+  S3PrefixMacro:
+    Type: "AWS::CloudFormation::Macro"
+    Properties:
+      Name: "S3PrefixMacro"
+      FunctionName: !Ref LambdaS3MacroFunction
+
